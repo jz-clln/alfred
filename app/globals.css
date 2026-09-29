@@ -9,10 +9,36 @@
   h1,
   h2,
   h3 {
-    @apply font-display;
+    @apply font-display tracking-tight;
   }
   :focus-visible {
     outline: 2px solid theme("colors.moss.DEFAULT");
     outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* Press feedback for anything tappable. Transform only, so it stays cheap. */
+  .tap {
+    transition: transform 100ms ease-out, opacity 150ms ease, background-color 150ms ease;
+  }
+  .tap:active {
+    transform: scale(0.97);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-toast-in,
+  .animate-rise {
+    animation: none;
+  }
+  .tap {
+    transition: none;
+  }
+  .tap:active {
+    transform: none;
   }
 }
