@@ -4,8 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getValidAccessToken, createCalendarEvent } from "@/lib/google/calendar";
+import type { ActionState } from "@/lib/action-state";
+import { parsePhilippineDateTime } from "@/lib/time";
 
-export async function scheduleMeeting(formData: FormData) {
+export async function scheduleMeeting(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
   const supabase = createClient();
   const {
     data: { user },
@@ -21,10 +26,18 @@ export async function scheduleMeeting(formData: FormData) {
   const time = String(formData.get("time") ?? "");
   const duration = Number(formData.get("duration") ?? 30);
 
-  if (!clientId || !title || !date || !time) return;
+  if (!clientId || !title || !date || !time) {
+    return { success: false, message: "Fill in every field to schedule." };
+  }
 
-  const start = new Date(`${date}T${time}`);
+  const start = parsePhilippineDateTime(date, time);
+  if (!start || !Number.isFinite(duration) || duration < 15 || duration % 15 !== 0) {
+    return { success: false, message: "Enter a valid Philippine date, time, and duration." };
+  }
   const end = new Date(start.getTime() + duration * 60_000);
+  if (!Number.isFinite(end.getTime())) {
+    return { success: false, message: "Enter a valid meeting duration." };
+  }
 
   const { data: client } = await supabase
     .from("clients")
@@ -49,4 +62,5 @@ export async function scheduleMeeting(formData: FormData) {
   });
 
   revalidatePath("/meetings");
+  return { success: true, message: `${title} scheduled.` };
 }

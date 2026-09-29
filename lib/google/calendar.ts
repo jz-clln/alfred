@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { APP_TIME_ZONE } from "@/lib/time";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -124,8 +125,8 @@ export async function createCalendarEvent(
     body: JSON.stringify({
       summary: event.summary,
       description: event.description,
-      start: { dateTime: event.startISO },
-      end: { dateTime: event.endISO },
+      start: { dateTime: event.startISO, timeZone: APP_TIME_ZONE },
+      end: { dateTime: event.endISO, timeZone: APP_TIME_ZONE },
       attendees: event.attendeeEmail ? [{ email: event.attendeeEmail }] : undefined,
     }),
   });
