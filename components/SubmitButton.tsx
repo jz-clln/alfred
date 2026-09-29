@@ -1,11 +1,13 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
+import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function SubmitButton({
   children,
   pendingLabel = "Saving…",
-  className = "tap rounded-xl bg-moss px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50",
+  className,
 }: {
   children: React.ReactNode;
   pendingLabel?: string;
@@ -13,8 +15,9 @@ export function SubmitButton({
 }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className={className}>
+    <Button type="submit" disabled={pending} className={className}>
+      {pending && <Loader2 className="animate-spin" aria-hidden="true" />}
       {pending ? pendingLabel : children}
-    </button>
+    </Button>
   );
 }

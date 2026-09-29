@@ -3,6 +3,29 @@
 @tailwind utilities;
 
 @layer base {
+  /* shadcn tokens mapped onto the Alfred palette. Values are "R G B". */
+  :root {
+    --background: 244 243 239;          /* paper */
+    --foreground: 28 28 28;             /* ink */
+    --card: 250 250 255;                /* surface */
+    --card-foreground: 28 28 28;
+    --popover: 250 250 255;
+    --popover-foreground: 28 28 28;
+    --primary: 28 28 28;                /* moss = carbon black */
+    --primary-foreground: 255 255 255;
+    --secondary: 226 228 224;           /* fill */
+    --secondary-foreground: 28 28 28;
+    --muted: 226 228 224;               /* fill */
+    --muted-foreground: 73 73 73;       /* ink-soft */
+    --accent: 226 228 224;
+    --accent-foreground: 28 28 28;
+    --destructive: 159 69 48;           /* rust */
+    --destructive-foreground: 255 255 255;
+    --border: 218 221 216;              /* line */
+    --input: 226 228 224;
+    --ring: 28 28 28;
+  }
+
   body {
     @apply bg-paper text-ink font-sans antialiased;
   }
