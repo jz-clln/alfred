@@ -1,13 +1,6 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { SidebarNav, TabBar } from "@/components/SidebarNav";
 import SignOutButton from "./sign-out-button";
-
-const NAV = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/clients", label: "Clients" },
-  { href: "/projects", label: "Projects" },
-  { href: "/meetings", label: "Meetings" },
-];
 
 export default async function AppLayout({
   children,
@@ -21,29 +14,26 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-56 shrink-0 flex-col justify-between border-r border-line px-5 py-6">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col justify-between bg-fill/40 px-4 py-7 backdrop-blur-xl md:flex">
         <div>
-          <div className="mb-8 font-display text-xl">Alfred</div>
-          <nav className="space-y-1">
-            {NAV.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="block rounded-md px-3 py-2 text-sm text-ink-soft transition-colors hover:bg-moss-soft hover:text-ink"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+          <div className="mb-9 px-3 font-display text-2xl">Alfred</div>
+          <SidebarNav />
         </div>
-
-        <div className="space-y-2">
+        <div className="space-y-2 px-3">
           <div className="truncate text-xs text-ink-soft">{user?.email}</div>
           <SignOutButton />
         </div>
       </aside>
 
-      <main className="flex-1 px-10 py-8">{children}</main>
+      <div className="min-w-0 flex-1">
+        <header className="sticky top-0 z-30 flex items-center justify-between bg-paper/80 px-5 py-3 backdrop-blur-xl md:hidden">
+          <span className="font-display text-xl">Alfred</span>
+          <SignOutButton />
+        </header>
+        <main className="px-5 pb-28 pt-4 md:px-12 md:pb-12 md:pt-10">{children}</main>
+      </div>
+
+      <TabBar />
     </div>
   );
 }

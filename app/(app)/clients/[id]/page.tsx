@@ -1,136 +1,110 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { addBalanceEntry } from "../actions";
+import { Group, EmptyState, StatusChip } from "@/components/ui/kit";
+import { AddBalanceEntryForm } from "./AddBalanceEntryForm";
 
-export default async function ClientDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+const money = (n: number) =>
+  `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+export default async function ClientDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
 
-  const [{ data: client }, { data: entries }, { data: balanceRow }, { data: projects }] =
+  const [{ data: client }, { data: entries }, { data: balanceRow }, { data: projects }, { data: emails }] =
     await Promise.all([
       supabase.from("clients").select("*").eq("id", params.id).single(),
-      supabase
-        .from("balance_entries")
-        .select("*")
-        .eq("client_id", params.id)
-        .order("entry_date", { ascending: false }),
-      supabase
-        .from("client_balances")
-        .select("balance")
-        .eq("client_id", params.id)
-        .maybeSingle(),
+      supabase.from("balance_entries").select("*").eq("client_id", params.id).order("entry_date", { ascending: false }),
+      supabase.from("client_balances").select("balance").eq("client_id", params.id).maybeSingle(),
       supabase.from("projects").select("id, name, status").eq("client_id", params.id),
+      supabase
+        .from("email_messages")
+        .select("id, subject, kind, status, sent_at")
+        .eq("client_id", params.id)
+        .order("sent_at", { ascending: false })
+        .limit(5),
     ]);
 
   if (!client) notFound();
-
-  const balance = balanceRow?.balance ?? 0;
-  const addEntry = addBalanceEntry.bind(null, params.id);
+  const balance = Number(balanceRow?.balance ?? 0);
 
   return (
-    <div className="max-w-3xl">
-      <div className="mb-8 flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-medium">{client.name}</h1>
-          <p className="mt-1 text-ink-soft">{client.email ?? "No email on file"}</p>
+    <div className="mx-auto max-w-3xl">
+      <Link href="/clients" className="text-sm text-moss">Clients</Link>
+
+      <div className="mb-8 mt-2 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-4xl font-medium">{client.name}</h1>
+          <p className="mt-1.5 text-ink-soft">
+            {[client.email, client.phone].filter(Boolean).join(" · ") || "No contact details"}
+          </p>
+          {client.email && (
+            <Link
+              href={`/outreach?to=client:${client.id}`}
+              className="tap mt-3 inline-block rounded-full bg-fill px-3.5 py-1.5 text-sm text-ink-soft hover:text-ink"
+            >
+              Write an email
+            </Link>
+          )}
         </div>
-        <div className="text-right">
+        <div className="shrink-0 text-right">
           <div className="text-xs text-ink-soft">Balance</div>
-          <div
-            className={`font-display text-3xl ${
-              balance > 0 ? "text-rust" : "text-moss"
-            }`}
-          >
-            ${Number(balance).toFixed(2)}
-          </div>
+          <div className={`font-display text-3xl ${balance > 0 ? "text-rust" : "text-moss"}`}>{money(balance)}</div>
         </div>
       </div>
 
       {!!projects?.length && (
-        <div className="mb-8">
-          <h2 className="mb-2 text-sm text-ink-soft">Projects</h2>
-          <ul className="space-y-1 text-sm">
-            {projects.map((p) => (
-              <li key={p.id}>
-                {p.name} <span className="text-ink-soft capitalize">— {p.status}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <>
+          <h2 className="mb-3 text-lg">Projects</h2>
+          <div className="mb-8">
+            <Group>
+              {projects.map((p) => (
+                <li key={p.id}>
+                  <Link href={`/projects/${p.id}`} className="tap flex items-center justify-between px-4 py-3 text-sm hover:bg-paper/60">
+                    <span>{p.name}</span>
+                    <StatusChip tone={p.status === "active" ? "moss" : "neutral"}>{p.status.replace("_", " ")}</StatusChip>
+                  </Link>
+                </li>
+              ))}
+            </Group>
+          </div>
+        </>
       )}
 
-      <h2 className="mb-2 text-sm text-ink-soft">Ledger</h2>
-      <div className="mb-6 overflow-hidden rounded-lg border border-line">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-line bg-surface text-left text-ink-soft">
-              <th className="px-4 py-3 font-normal">Date</th>
-              <th className="px-4 py-3 font-normal">Type</th>
-              <th className="px-4 py-3 font-normal">Memo</th>
-              <th className="px-4 py-3 text-right font-normal">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries?.map((e) => (
-              <tr key={e.id} className="border-b border-line last:border-0">
-                <td className="px-4 py-3 text-ink-soft">{e.entry_date}</td>
-                <td className="px-4 py-3 capitalize">{e.type}</td>
-                <td className="px-4 py-3 text-ink-soft">{e.memo ?? "—"}</td>
-                <td className="px-4 py-3 text-right">
-                  {e.type === "invoice" ? "+" : "−"}${Number(e.amount).toFixed(2)}
-                </td>
-              </tr>
-            ))}
-            {!entries?.length && (
-              <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-ink-soft">
-                  No entries yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <h2 className="mb-3 text-lg">Ledger</h2>
+      <Group>
+        {entries?.map((e) => (
+          <li key={e.id} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+            <div className="min-w-0">
+              <div className="capitalize">{e.type}{e.memo ? <span className="text-ink-soft"> · {e.memo}</span> : null}</div>
+              <div className="text-xs text-ink-soft">{e.entry_date}</div>
+            </div>
+            <div className={e.type === "invoice" ? "text-rust" : "text-moss"}>
+              {e.type === "invoice" ? "+" : "−"}{money(e.amount)}
+            </div>
+          </li>
+        ))}
+        {!entries?.length && <EmptyState>No entries yet.</EmptyState>}
+      </Group>
+
+      <div className="mt-4">
+        <AddBalanceEntryForm clientId={params.id} />
       </div>
 
-      <form action={addEntry} className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="mb-1 block text-xs text-ink-soft">Type</label>
-          <select
-            name="type"
-            className="rounded-md border border-line bg-surface px-3 py-2 text-sm"
-          >
-            <option value="invoice">Invoice (they owe you)</option>
-            <option value="payment">Payment (they paid you)</option>
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-ink-soft">Amount</label>
-          <input
-            name="amount"
-            type="number"
-            step="0.01"
-            min="0"
-            required
-            className="w-32 rounded-md border border-line bg-surface px-3 py-2 text-sm"
-          />
-        </div>
-        <div className="flex-1">
-          <label className="mb-1 block text-xs text-ink-soft">Memo</label>
-          <input
-            name="memo"
-            className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
-          />
-        </div>
-        <button
-          type="submit"
-          className="rounded-md bg-ink px-4 py-2 text-sm text-paper hover:opacity-90"
-        >
-          Add entry
-        </button>
-      </form>
+      {!!emails?.length && (
+        <>
+          <h2 className="mb-3 mt-10 text-lg">Recent emails</h2>
+          <Group>
+            {emails.map((m) => (
+              <li key={m.id} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                <span className="truncate">{m.subject}</span>
+                <span className={`shrink-0 text-xs ${m.status === "failed" || m.status === "bounced" ? "text-rust" : "text-ink-soft"}`}>
+                  {m.kind === "reminder" ? "Reminder" : "Email"} · {m.status}
+                </span>
+              </li>
+            ))}
+          </Group>
+        </>
+      )}
     </div>
   );
 }
