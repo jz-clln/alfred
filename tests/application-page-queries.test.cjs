@@ -33,6 +33,7 @@ async function renderPage(page, applicationId) {
     "./AddLeadForm": { AddLeadForm: "add-lead-form" },
     "./AddProjectForm": { AddProjectForm: "add-project-form" },
     "./LeadActions": { LeadActions: "lead-actions" },
+    "./JevDetails": { JevDetails: "jev-details" },
     "../leads/AddLeadForm": { AddLeadForm: "add-lead-form" },
     "./RepliesPanel": { RepliesPanel: "replies-panel" },
     "./SentPanel": { SentPanel: "sent-panel" },

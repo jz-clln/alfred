@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getActiveApplicationId } from "@/lib/applications";
 import { filterApplication, UNASSIGNED_APPLICATION } from "@/lib/application-scope";
 import { scoreLead, type Temperature } from "@/lib/leads/score";
+import { JevDetails } from "./JevDetails";
 import { PageTitle, Group, EmptyState, TempBadge, StatusChip } from "@/components/ui/kit";
 import { Button } from "@/components/ui/button";
 import { FormDialog } from "@/components/ui/form-dialog";
@@ -118,6 +119,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: { t?: 
                   {[lead.company, lead.email].filter(Boolean).join(" · ") || "No contact details"}
                 </div>
                 {!!reasons.length && <div className="mt-1 text-xs text-ink-soft">{reasons.join(", ")}</div>}
+                <JevDetails assessment={lead.jev_assessment} />
               </div>
               <StatusChip tone={stageTone(lead.stage)}>{lead.stage}</StatusChip>
             </div>

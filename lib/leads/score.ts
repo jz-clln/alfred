@@ -2,6 +2,8 @@
 export type Temperature = "hot" | "warm" | "cold";
 
 export interface ScoreLead {
+  jev_assessment?: { temperature: Temperature; confidence: number; analyzed_at: string; signals: { buying_intent: number } } | null;
+  temperature_override?: Temperature | null;
   stage: string;
   email_status: string;
   last_contacted_at: string | null;
@@ -20,11 +22,27 @@ const daysAgo = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime(
 export function scoreLead(lead: ScoreLead, messages: ScoreMessage[]) {
   const reasons: string[] = [];
 
+  if (lead.temperature_override) {
+    return {
+      score: { hot: 80, warm: 45, cold: 10 }[lead.temperature_override],
+      temperature: lead.temperature_override,
+      reasons: ["Temperature set manually"],
+    };
+  }
+
   if (lead.email_status === "invalid" || messages.some((m) => m.status === "bounced")) {
     return { score: 0, temperature: "cold" as Temperature, reasons: ["Email doesn't work"] };
   }
   if (lead.stage === "won") return { score: 100, temperature: "hot" as Temperature, reasons: ["Became a client"] };
   if (lead.stage === "lost") return { score: 0, temperature: "cold" as Temperature, reasons: ["Marked lost"] };
+
+  const ai = lead.jev_assessment;
+  const fresh = ai && (!lead.last_replied_at || Date.parse(ai.analyzed_at) >= Date.parse(lead.last_replied_at));
+  if (ai && fresh && ai.confidence >= 0.7) {
+    return { score: Math.round(ai.signals.buying_intent * 100), temperature: ai.temperature,
+      reasons: [`JEV: ${ai.temperature} (${Math.round(ai.confidence * 100)}% confidence)`] };
+  }
+  if (ai) reasons.push(fresh ? "JEV uncertain; review recommended. Using activity score" : "New reply; analyze with JEV again. Using activity score");
 
   let score = lead.stage === "new" ? 10 : 15;
 

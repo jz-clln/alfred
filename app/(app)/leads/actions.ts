@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { checkEmail } from "@/lib/email/validate";
 import type { ActionState } from "@/lib/action-state";
+import type { Temperature } from "@/lib/leads/score";
 
 async function requireUser() {
   const supabase = createClient();
@@ -15,6 +16,17 @@ async function requireUser() {
 
 function must(error: { message: string } | null) {
   if (error) throw new Error(error.message);
+}
+
+export async function setLeadTemperature(leadId: string, temperature: Temperature | null) {
+  if (temperature !== null && !["hot", "warm", "cold"].includes(temperature)) throw new Error("Invalid temperature.");
+  const { supabase, user } = await requireUser();
+  const { data, error } = await supabase.from("leads").update({ temperature_override: temperature })
+    .eq("id", leadId).eq("owner_id", user.id).select("id").maybeSingle();
+  must(error);
+  if (!data) throw new Error("Lead unavailable.");
+  revalidatePath("/leads");
+  revalidatePath("/dashboard");
 }
 
 export async function createLead(

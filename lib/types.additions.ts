@@ -3,6 +3,8 @@ export type LeadStage = "new" | "contacted" | "replied" | "meeting" | "won" | "l
 export type EmailStatus = "unchecked" | "valid" | "invalid" | "risky";
 
 export interface Lead {
+  jev_assessment?: import("./leads/jev").JevAssessment | null;
+  temperature_override: "hot" | "warm" | "cold" | null;
   id: string;
   owner_id: string;
   application_id: string | null;

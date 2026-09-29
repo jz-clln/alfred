@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { analyzeLeadWithJev } from "./jev-actions";
 import { useState, useTransition } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { checkLeadEmail, markLeadReplied, setLeadStage, convertLeadToClient } from "./actions";
+import { checkLeadEmail, markLeadReplied, setLeadStage, convertLeadToClient, setLeadTemperature } from "./actions";
 
 type Lead = { id: string; name: string; stage: string; email: string | null };
 type Key = "email" | "check" | "replied" | "meeting" | "client";
@@ -30,6 +31,8 @@ const PRIMARY: Record<string, Key> = {
 export function LeadActions({ lead }: { lead: Lead }) {
   const [pending, start] = useTransition();
   const [confirmLost, setConfirmLost] = useState(false);
+  const [jevOpen, setJevOpen] = useState(false);
+  const [context, setContext] = useState("");
   const { showToast } = useToast();
 
   function run(fn: () => Promise<string | void>, ok: string) {
@@ -100,11 +103,39 @@ export function LeadActions({ lead }: { lead: Lead }) {
             )
           )}
           <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setJevOpen(true)}>Analyze with JEV</DropdownMenuItem>
+          {(["hot", "warm", "cold"] as const).map((temperature) => (
+            <DropdownMenuItem key={temperature} onSelect={() => run(() => setLeadTemperature(lead.id, temperature), `Marked ${temperature}.`)}>
+              Set {temperature}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuItem onSelect={() => run(() => setLeadTemperature(lead.id, null), "Automatic scoring restored.")}>
+            Use automatic scoring
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem destructive onSelect={() => setConfirmLost(true)}>
             Mark as lost
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog open={jevOpen} onOpenChange={setJevOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Qualify {lead.name} with JEV</DialogTitle>
+            <DialogDescription>Analyze saved notes and the five latest email replies. You can also paste a conversation below. This text is sent to JEV; manual temperature settings take priority.</DialogDescription>
+          </DialogHeader>
+          <label htmlFor={`jev-context-${lead.id}`} className="text-sm">Additional lead conversation (optional)</label>
+          <textarea id={`jev-context-${lead.id}`} className="min-h-36 w-full rounded-md border p-3 text-sm" value={context} onChange={e => setContext(e.target.value)} maxLength={12000} disabled={pending} />
+          <Button disabled={pending} onClick={() => start(async () => {
+            try {
+              const result = await analyzeLeadWithJev(lead.id, context);
+              if (result.error) showToast(result.error, "error");
+              else { showToast("JEV assessment saved. Manual settings still take priority."); setJevOpen(false); }
+            } catch { showToast("Analysis failed. Please try again.", "error"); }
+          })}>{pending ? "Analyzing…" : "Analyze with JEV"}</Button>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={confirmLost} onOpenChange={setConfirmLost}>
         <DialogContent>

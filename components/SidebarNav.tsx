@@ -7,6 +7,7 @@ import {
   CalendarDays,
   ChevronRight,
   FolderKanban,
+  FileText,
   MoreHorizontal,
   Send,
   Sun,
@@ -30,6 +31,7 @@ export const NAV = [
   { href: "/outreach", label: "Outreach", icon: Send, mobile: true },
   { href: "/meetings", label: "Meetings", icon: CalendarDays, mobile: false },
   { href: "/projects", label: "Projects", icon: FolderKanban, mobile: false },
+  { href: "/proposals", label: "Proposals", icon: FileText, mobile: false },
   { href: "/insights", label: "Insights", icon: TrendingUp, mobile: false },
 ];
 
