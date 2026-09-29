@@ -14,7 +14,7 @@ export default async function MeetingsPage() {
   const events = accessToken ? await listUpcomingEvents(accessToken, 10) : [];
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-6xl">
       <PageTitle
         title="Meetings"
         sub="All times are Philippine time."

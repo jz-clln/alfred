@@ -47,7 +47,7 @@ export function PageSkeleton({
   variant?: "list" | "leads" | "dashboard" | "compose" | "insights" | "detail";
 }) {
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-6xl">
       <p role="status" className="sr-only">Loading {title.toLowerCase()}…</p>
       <div aria-hidden="true">
         {variant === "detail" ? (

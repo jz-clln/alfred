@@ -13,7 +13,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
   if (!project) notFound();
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-6xl">
       <Link href="/projects" className="text-sm text-moss">Projects</Link>
       <h1 className="mb-1.5 mt-2 text-4xl font-medium">{project.name}</h1>
       <p className="mb-8 text-ink-soft">

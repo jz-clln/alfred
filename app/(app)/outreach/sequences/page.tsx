@@ -15,7 +15,7 @@ export default async function SequencesPage() {
   const count = (rows: any[] | null, id: string) => (rows ?? []).filter((r) => r.sequence_id === id).length;
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-6xl">
       <PageTitle
         title="Follow-ups"
         sub="Automatic nudges for leads who haven't answered."
