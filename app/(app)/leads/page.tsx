@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveApplicationId } from "@/lib/applications";
+import { filterApplication, UNASSIGNED_APPLICATION } from "@/lib/application-scope";
 import { scoreLead, type Temperature } from "@/lib/leads/score";
 import { PageTitle, Group, EmptyState, TempBadge, StatusChip } from "@/components/ui/kit";
 import { Button } from "@/components/ui/button";
@@ -19,17 +21,27 @@ const stageTone = (s: string) =>
 
 export default async function LeadsPage({ searchParams }: { searchParams: { t?: string; q?: string } }) {
   const supabase = createClient();
-  const [{ data: leads }, { data: messages }] = await Promise.all([
-    supabase.from("leads").select("*").order("created_at", { ascending: false }),
+  const activeApplicationId = getActiveApplicationId();
+
+  let leadsQuery = supabase
+    .from("leads")
+    .select("*, applications(name)")
+    .order("created_at", { ascending: false });
+  filterApplication(leadsQuery, activeApplicationId);
+
+  const [{ data: leads }, { data: messages }, { data: applications }] = await Promise.all([
+    leadsQuery,
     supabase.from("email_messages").select("lead_id, status, opened_at, clicked_at, sent_at").not("lead_id", "is", null),
+    supabase.from("applications").select("id, name").order("created_at"),
   ]);
+
+  const showAppBadge = !activeApplicationId && (applications?.length ?? 0) > 0;
 
   const byLead = new Map<string, any[]>();
   for (const m of messages ?? []) {
     byLead.set(m.lead_id, [...(byLead.get(m.lead_id) ?? []), m]);
   }
 
-  // ?q= comes from the search palette. Matches name, company, or email.
   const q = (searchParams.q ?? "").trim();
   const needle = q.toLowerCase();
 
@@ -56,13 +68,13 @@ export default async function LeadsPage({ searchParams }: { searchParams: { t?: 
   };
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-6xl">
       <PageTitle
         title="Leads"
         sub="Sorted by how ready they are to hear from you."
         action={
           <FormDialog triggerLabel="Add lead" title="Add a lead" wide>
-            <AddLeadForm />
+            <AddLeadForm applications={applications ?? []} defaultApplicationId={activeApplicationId === UNASSIGNED_APPLICATION ? null : activeApplicationId} />
           </FormDialog>
         }
       />
@@ -71,13 +83,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: { t?: 
         {FILTERS.map((f) => {
           const active = filter === f.key;
           return (
-            <Button
-              key={f.key}
-              asChild
-              size="pill"
-              variant={active ? "default" : "pill"}
-              className="rounded-full"
-            >
+            <Button key={f.key} asChild size="pill" variant={active ? "default" : "pill"} className="rounded-full">
               <Link href={href(f.key)} aria-current={active ? "page" : undefined}>
                 {f.label}
                 {f.key !== "all" && <span className="opacity-70">{counts[f.key as Temperature]}</span>}
@@ -104,6 +110,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: { t?: 
                   <TempBadge temperature={temperature} />
                   {lead.email_status === "invalid" && <StatusChip tone="rust">bad email</StatusChip>}
                   {lead.email_status === "risky" && <StatusChip tone="brass">risky email</StatusChip>}
+                  {showAppBadge && lead.applications?.name && (
+                    <StatusChip tone="neutral">{lead.applications.name}</StatusChip>
+                  )}
                 </div>
                 <div className="mt-0.5 truncate text-sm text-ink-soft">
                   {[lead.company, lead.email].filter(Boolean).join(" · ") || "No contact details"}
@@ -114,9 +123,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: { t?: 
             </div>
 
             {lead.stage !== "won" && lead.stage !== "lost" && (
-              <LeadActions
-                lead={{ id: lead.id, name: lead.name, stage: lead.stage, email: lead.email }}
-              />
+              <LeadActions lead={{ id: lead.id, name: lead.name, stage: lead.stage, email: lead.email }} />
             )}
             {lead.stage === "won" && lead.client_id && (
               <Button asChild variant="link" className="mt-1 h-auto px-0">
@@ -130,7 +137,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: { t?: 
             {q
               ? `No leads match “${q}”.`
               : filter === "all"
-                ? "No leads yet. Tap “Add lead” to start."
+                ? activeApplicationId === UNASSIGNED_APPLICATION ? "No unassigned leads yet." : activeApplicationId
+                  ? "No leads in this application yet. Tap “Add lead” to start."
+                  : "No leads yet. Tap “Add lead” to start."
                 : `No ${filter} leads right now.`}
           </EmptyState>
         )}

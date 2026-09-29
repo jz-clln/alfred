@@ -1,7 +1,13 @@
+//app\(app)\layout.tsx
+
 import { createClient } from "@/lib/supabase/server";
 import { SidebarNav, TabBar } from "@/components/SidebarNav";
 import { CommandPalette, PaletteTrigger } from "@/components/CommandPalette";
+import { ApplicationSwitcher } from "@/components/ApplicationSwitcher";
+import { getActiveApplicationId } from "@/lib/applications";
 import SignOutButton from "./sign-out-button";
+import { CurrencySwitcher } from "@/components/CurrencySwitcher";
+import { getDisplayCurrency } from "@/lib/currency-preference";
 
 export default async function AppLayout({
   children,
@@ -9,37 +15,83 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [
+    {
+      data: { user },
+    },
+    { data: applications },
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.from("applications").select("id, name").order("created_at"),
+  ]);
+  const activeApplicationId = getActiveApplicationId();
+  const displayCurrency = getDisplayCurrency();
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-dvh">
+      {/* Keyboard users skip the sidebar. Visible only when focused. */}
+      <a
+        href="#main"
+        className="sr-only rounded-xl bg-card px-4 py-2 text-sm shadow-lg focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70]"
+      >
+        Skip to content
+      </a>
+
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col justify-between bg-fill/40 px-4 py-7 backdrop-blur-xl md:flex">
         <div>
-          <div className="mb-6 px-3 font-display text-2xl">Alfred</div>
+          <div className="mb-4 px-3 font-display text-2xl">Alfred</div>
+          <div className="mb-4">
+            <ApplicationSwitcher applications={applications ?? []} activeId={activeApplicationId} />
+          </div>
           <div className="mb-4">
             <PaletteTrigger variant="sidebar" />
           </div>
           <SidebarNav />
         </div>
-        <div className="space-y-1 px-3">
-          <div className="truncate text-xs text-ink-soft">{user?.email}</div>
-          <SignOutButton />
+
+        <div className="space-y-4 px-3">
+          <div>
+            <p className="mb-1.5 text-xs text-ink-soft">Display currency</p>
+            <CurrencySwitcher currency={displayCurrency} className="w-full" />
+          </div>
+          <div className="space-y-1 border-t border-line/70 pt-3">
+            <div className="truncate text-xs text-ink-soft">{user?.email}</div>
+            <SignOutButton />
+          </div>
         </div>
       </aside>
 
       <div className="min-w-0 flex-1">
-        {/* Sign out moved into the phone "More" sheet. */}
+        {/* Phone header: only what you need at a glance. Currency and sign out
+            live in the More sheet, so this row never crowds on small screens. */}
         <header className="sticky top-0 z-30 flex items-center justify-between bg-paper/80 px-5 py-1 backdrop-blur-xl md:hidden">
-          <span className="font-display text-xl">Alfred</span>
+          <ApplicationSwitcher
+            variant="compact"
+            applications={applications ?? []}
+            activeId={activeApplicationId}
+          />
           <PaletteTrigger variant="icon" />
         </header>
-        <main className="px-5 pb-28 pt-4 md:px-12 md:pb-12 md:pt-10">{children}</main>
+        <main id="main" tabIndex={-1} className="px-5 pb-28 pt-4 outline-none md:px-12 md:pb-12 md:pt-10">
+          {children}
+        </main>
       </div>
 
-      <TabBar email={user?.email} signOut={<SignOutButton variant="row" />} />
-      <CommandPalette />
+      {/* TabBar renders this slot inside the More sheet, so it carries both the
+          currency control and Sign out. */}
+      <TabBar
+        email={user?.email}
+        signOut={
+          <>
+            <div>
+              <p className="mb-1.5 text-sm text-ink-soft">Display currency</p>
+              <CurrencySwitcher currency={displayCurrency} large className="w-full" />
+            </div>
+            <SignOutButton variant="row" />
+          </>
+        }
+      />
+      <CommandPalette activeApplicationId={activeApplicationId} />
     </div>
   );
 }

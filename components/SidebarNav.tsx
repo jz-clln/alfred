@@ -15,6 +15,8 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+import { ReplyWatcher } from "@/components/ReplyWatcher";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 // Single source of truth for navigation. The sidebar, the phone tab bar, the
@@ -36,8 +38,48 @@ function useActive() {
   return (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 }
 
+// Unread replies. Refreshes on every page change (works without Realtime) and
+// instantly when Realtime is on. Shows 0 if the table doesn't exist yet.
+function useUnreadReplies() {
+  const pathname = usePathname();
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const sb = createClient();
+    let alive = true;
+    const load = async () => {
+      const { count: n } = await sb
+        .from("inbound_emails")
+        .select("id", { count: "exact", head: true })
+        .is("read_at", null);
+      if (alive) setCount(n ?? 0);
+    };
+    load();
+    const channel = sb
+      .channel(`unread-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "inbound_emails" }, load)
+      .subscribe();
+    return () => {
+      alive = false;
+      sb.removeChannel(channel);
+    };
+  }, [pathname]);
+
+  return count;
+}
+
+function Count({ n }: { n: number }) {
+  return (
+    <span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-[11px] font-medium tabular-nums text-primary-foreground">
+      {n}
+      <span className="sr-only"> unread</span>
+    </span>
+  );
+}
+
 export function SidebarNav() {
   const isActive = useActive();
+  const unread = useUnreadReplies();
   return (
     <nav aria-label="Sidebar" className="space-y-0.5">
       {NAV.map((item) => {
@@ -54,6 +96,7 @@ export function SidebarNav() {
           >
             <item.icon className="size-4 shrink-0" strokeWidth={active ? 2.25 : 1.75} aria-hidden="true" />
             {item.label}
+            {item.href === "/outreach" && unread > 0 && <Count n={unread} />}
           </Link>
         );
       })}
@@ -73,6 +116,7 @@ const tabClass = (active: boolean) =>
 export function TabBar({ email, signOut }: { email?: string | null; signOut?: ReactNode }) {
   const pathname = usePathname();
   const isActive = useActive();
+  const unread = useUnreadReplies();
   const [open, setOpen] = useState(false);
 
   // Close the sheet after any navigation.
@@ -84,6 +128,9 @@ export function TabBar({ email, signOut }: { email?: string | null; signOut?: Re
 
   return (
     <>
+      {/* Always mounted, on every screen size: checks Gmail and listens for new replies. */}
+      <ReplyWatcher />
+
       <nav
         aria-label="Main"
         className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-line/60 bg-paper/80 backdrop-blur-xl md:hidden"
@@ -94,7 +141,15 @@ export function TabBar({ email, signOut }: { email?: string | null; signOut?: Re
             return (
               <li key={item.href} className="flex-1">
                 <Link href={item.href} aria-current={active ? "page" : undefined} className={tabClass(active)}>
-                  <item.icon className="size-5" strokeWidth={active ? 2.25 : 1.75} aria-hidden="true" />
+                  <span className="relative">
+                    <item.icon className="size-5" strokeWidth={active ? 2.25 : 1.75} aria-hidden="true" />
+                    {item.href === "/outreach" && unread > 0 && (
+                      <>
+                        <span className="absolute -right-1 -top-0.5 size-2 rounded-full bg-primary" aria-hidden="true" />
+                        <span className="sr-only">{unread} unread replies</span>
+                      </>
+                    )}
+                  </span>
                   {item.label}
                 </Link>
               </li>

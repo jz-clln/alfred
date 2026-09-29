@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { filterApplication } from "@/lib/application-scope";
 import { Button } from "@/components/ui/button";
 import { NAV } from "@/components/SidebarNav";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -21,7 +22,7 @@ const ACTIONS = [
 type Item = { id: string; name: string };
 type Data = { clients: Item[]; projects: Item[]; leads: Item[] };
 
-export function CommandPalette() {
+export function CommandPalette({ activeApplicationId }: { activeApplicationId: string | null }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<Data | null>(null);
@@ -42,21 +43,41 @@ export function CommandPalette() {
     };
   }, []);
 
+  // Re-fetch whenever the active application changes, not just on open —
+  // otherwise switching applications with the palette already cached would
+  // keep showing the previous application's results.
+  useEffect(() => {
+    setData(null);
+  }, [activeApplicationId]);
+
   useEffect(() => {
     if (!open || data) return;
     let alive = true;
     const sb = createClient();
-    Promise.all([
-      sb.from("clients").select("id, name").order("name").limit(200),
-      sb.from("projects").select("id, name").order("created_at", { ascending: false }).limit(200),
-      sb.from("leads").select("id, name").order("created_at", { ascending: false }).limit(200),
-    ])
-      .then(([c, p, l]) => alive && setData({ clients: c.data ?? [], projects: p.data ?? [], leads: l.data ?? [] }))
+
+    let clientsQuery = sb.from("clients").select("id, name").order("name").limit(200);
+    filterApplication(clientsQuery, activeApplicationId);
+
+    let leadsQuery = sb.from("leads").select("id, name").order("created_at", { ascending: false }).limit(200);
+    filterApplication(leadsQuery, activeApplicationId);
+
+    // clients!inner is always included so the query has one consistent
+    // shape whether or not it ends up filtered — PostgREST needs the inner
+    // join present to filter by the embedded column at all.
+    let projectsQuery = sb
+      .from("projects")
+      .select("id, name, clients!inner(application_id)")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    filterApplication(projectsQuery, activeApplicationId, "clients.application_id");
+
+    Promise.all([clientsQuery, projectsQuery, leadsQuery])
+      .then(([c, p, l]) => alive && setData({ clients: c.data ?? [], projects: (p.data as any) ?? [], leads: l.data ?? [] }))
       .catch(() => alive && setData({ clients: [], projects: [], leads: [] }));
     return () => {
       alive = false;
     };
-  }, [open, data]);
+  }, [open, data, activeApplicationId]);
 
   const go = (href: string) => {
     setOpen(false);

@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveApplicationId } from "@/lib/applications";
+import { filterApplication, UNASSIGNED_APPLICATION } from "@/lib/application-scope";
 import { PageTitle, Group, EmptyState, StatusChip } from "@/components/ui/kit";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { philippineDate } from "@/lib/time";
@@ -7,14 +9,24 @@ import { AddProjectForm } from "./AddProjectForm";
 
 export default async function ProjectsPage() {
   const supabase = createClient();
-  const [{ data: projects }, { data: clients }] = await Promise.all([
-    supabase.from("projects").select("id, name, status, due_date, clients(name)").order("created_at", { ascending: false }),
-    supabase.from("clients").select("id, name").order("name"),
-  ]);
+  const activeApplicationId = getActiveApplicationId();
+
+  // clients!inner turns the embed into an inner join, which is what lets
+  // PostgREST filter by the embedded table's column below.
+  let projectsQuery = supabase
+    .from("projects")
+    .select("id, name, status, due_date, clients!inner(name, application_id)")
+    .order("created_at", { ascending: false });
+  filterApplication(projectsQuery, activeApplicationId, "clients.application_id");
+
+  let clientsQuery = supabase.from("clients").select("id, name").order("name");
+  filterApplication(clientsQuery, activeApplicationId);
+
+  const [{ data: projects }, { data: clients }] = await Promise.all([projectsQuery, clientsQuery]);
   const today = philippineDate();
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-6xl">
       <PageTitle
         title="Projects"
         action={
@@ -46,7 +58,13 @@ export default async function ProjectsPage() {
             </li>
           );
         })}
-        {!projects?.length && <EmptyState>No projects yet. Tap “Add project” to start.</EmptyState>}
+        {!projects?.length && (
+          <EmptyState>
+            {activeApplicationId === UNASSIGNED_APPLICATION ? "No projects linked to unassigned clients yet." : activeApplicationId
+              ? "No projects in this application yet. Tap “Add project” to start."
+              : "No projects yet. Tap “Add project” to start."}
+          </EmptyState>
+        )}
       </Group>
     </div>
   );

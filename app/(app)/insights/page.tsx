@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { PageTitle } from "@/components/ui/kit";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { getActiveApplicationId } from "@/lib/applications";
+import { filterApplication } from "@/lib/application-scope";
 
 function Bar({ label, value, of, note }: { label: string; value: number; of: number; note?: string }) {
   const hasData = of > 0;
@@ -34,9 +36,18 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default async function InsightsPage() {
   const supabase = createClient();
+  const applicationId = getActiveApplicationId();
+  let leadsQuery = supabase.from("leads").select("stage, last_contacted_at, last_replied_at, client_id");
+  let messagesQuery = supabase.from("email_messages").select("status, opened_at, kind, leads(), clients()");
+  if (applicationId) {
+    filterApplication(leadsQuery, applicationId);
+    filterApplication(messagesQuery, applicationId, "leads.application_id");
+    filterApplication(messagesQuery, applicationId, "clients.application_id");
+    messagesQuery = messagesQuery.or("leads.not.is.null,clients.not.is.null");
+  }
   const [{ data: leads }, { data: messages }] = await Promise.all([
-    supabase.from("leads").select("stage, last_contacted_at, last_replied_at, client_id"),
-    supabase.from("email_messages").select("status, opened_at, kind"),
+    leadsQuery,
+    messagesQuery,
   ]);
 
   const all = leads ?? [];
@@ -50,7 +61,7 @@ export default async function InsightsPage() {
   const bounced = outbound.filter((m) => m.status === "bounced").length;
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-6xl">
       <PageTitle title="Insights" sub="How your outreach is turning into work." />
 
       <div className="space-y-10">

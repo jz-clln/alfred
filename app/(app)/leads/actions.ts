@@ -13,8 +13,6 @@ async function requireUser() {
   return { supabase, user };
 }
 
-// CHANGED: database errors now throw. Before, a failed update looked like a
-// success. LeadActions.tsx catches the throw, and shows an error toast.
 function must(error: { message: string } | null) {
   if (error) throw new Error(error.message);
 }
@@ -37,6 +35,7 @@ export async function createLead(
     email_status,
     company: String(formData.get("company") ?? "").trim() || null,
     source: String(formData.get("source") ?? "").trim() || null,
+    application_id: String(formData.get("application_id") ?? "").trim() || null,
   });
   if (error) return { success: false, message: error.message };
 
@@ -50,7 +49,6 @@ export async function createLead(
   };
 }
 
-// CHANGED: returns the new status so the UI can say what it found.
 export async function checkLeadEmail(leadId: string) {
   const { supabase } = await requireUser();
   const { data: lead } = await supabase.from("leads").select("email").eq("id", leadId).single();
@@ -69,7 +67,6 @@ export async function markLeadReplied(leadId: string) {
     .update({ stage: "replied", last_replied_at: new Date().toISOString() })
     .eq("id", leadId);
   must(error);
-  // A reply ends any follow-up sequence for this lead.
   await supabase
     .from("sequence_enrollments")
     .update({ status: "stopped" })
@@ -102,7 +99,15 @@ export async function convertLeadToClient(leadId: string) {
 
   const { data: client, error } = await supabase
     .from("clients")
-    .insert({ owner_id: user.id, name: lead.name, email: lead.email, notes: lead.company })
+    .insert({
+      owner_id: user.id,
+      name: lead.name,
+      email: lead.email,
+      notes: lead.company,
+      // Keeps the new client in the same application the lead came from,
+      // rather than dropping it into "unassigned" on conversion.
+      application_id: lead.application_id,
+    })
     .select("id")
     .single();
   must(error);

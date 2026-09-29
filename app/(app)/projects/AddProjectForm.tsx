@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef } from "react";
-import Link from "next/link";
 import { useFormState } from "react-dom";
 import { SubmitButton } from "@/components/SubmitButton";
 import { useFormFeedback } from "@/components/useFormFeedback";
@@ -15,25 +14,24 @@ export function AddProjectForm({ clients }: { clients: { id: string; name: strin
   const [state, formAction] = useFormState(createProjectRecord, initialActionState);
   const formRef = useRef<HTMLFormElement>(null);
   useFormFeedback(state, formRef);
-  const clientOptions = clients.map((c) => ({ value: c.id, label: c.name }));
 
   return (
-    <form ref={formRef} action={formAction} className="grid gap-4">
-      {!clients.length && (
-        <p className="rounded-xl bg-muted px-3.5 py-3 text-sm text-ink-soft">
-          You need a client first. <Link href="/clients" className="text-moss underline">Add one</Link>, then come back.
-        </p>
-      )}
-      <Field label="Project name" htmlFor="p-name">
+    <form ref={formRef} action={formAction} className="grid gap-4 sm:grid-cols-2">
+      <Field label="Project name" htmlFor="p-name" className="sm:col-span-2">
         <Input id="p-name" name="name" required autoComplete="off" />
       </Field>
       <Field label="Client" htmlFor="p-client">
-        <Select id="p-client" name="client_id" required placeholder="Choose a client…" options={clientOptions} disabled={!clients.length} />
+        <Select
+          id="p-client"
+          name="client_id"
+          emptyLabel={clients.length ? "Select…" : "No clients yet"}
+          options={clients.map((c) => ({ value: c.id, label: c.name }))}
+        />
       </Field>
-      <Field label="Due date" htmlFor="p-due" hint="Optional.">
+      <Field label="Due date" htmlFor="p-due">
         <Input id="p-due" name="due_date" type="date" />
       </Field>
-      <SubmitButton pendingLabel="Creating…" className="w-full sm:w-auto sm:justify-self-end">
+      <SubmitButton pendingLabel="Creating…" className="w-full sm:col-span-2 sm:w-auto sm:justify-self-end">
         Add project
       </SubmitButton>
     </form>
