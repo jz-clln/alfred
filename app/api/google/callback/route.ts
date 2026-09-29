@@ -38,5 +38,13 @@ export async function GET(request: Request) {
     expires_at: expiresAt,
   });
 
-  return NextResponse.redirect(new URL("/meetings?connected=1", request.url));
+  // Google's consent screen lets you untick individual permissions. If the
+  // Gmail box was unticked, calendar still works but replies can't be read.
+  const gmailGranted = tokens.scope?.includes("gmail.readonly");
+  return NextResponse.redirect(
+    new URL(
+      gmailGranted ? "/outreach?tab=replies&connected=1" : "/outreach?tab=replies&gmail=missing",
+      request.url
+    )
+  );
 }

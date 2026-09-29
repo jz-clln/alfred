@@ -5,11 +5,14 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { sendEmail, renderTemplate } from "@/lib/email/send";
 import type { ActionState } from "@/lib/action-state";
+import { getActiveApplicationId } from "@/lib/applications";
+import { filterApplication, UNASSIGNED_APPLICATION } from "@/lib/application-scope";
 
 const DAY = 86_400_000;
 const MAX_RECIPIENTS = 50;
 
 export async function sendEmails(
+  applicationId: string | null,
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
@@ -17,10 +20,19 @@ export async function sendEmails(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  if (applicationId !== getActiveApplicationId()) {
+    return { success: false, message: "Application changed. Reload outreach and select your recipients again." };
+  }
+  if (applicationId && applicationId !== UNASSIGNED_APPLICATION) {
+    const { data, error } = await supabase.from("applications").select("id")
+      .eq("id", applicationId).eq("owner_id", user.id).maybeSingle();
+    if (error || !data) return { success: false, message: "This application is unavailable. Nothing was sent." };
+  }
+
   const subject = String(formData.get("subject") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim();
   const sequenceId = String(formData.get("sequence_id") ?? "");
-  const picks = formData.getAll("recipients").map(String);
+  const picks = [...new Set(formData.getAll("recipients").map(String))];
 
   if (!subject || !body) return { success: false, message: "Add a subject and a message." };
   if (!picks.length) return { success: false, message: "Pick at least one recipient." };
@@ -30,15 +42,31 @@ export async function sendEmails(
 
   const leadIds = picks.filter((p) => p.startsWith("lead:")).map((p) => p.slice(5));
   const clientIds = picks.filter((p) => p.startsWith("client:")).map((p) => p.slice(7));
+  if (leadIds.length + clientIds.length !== picks.length) {
+    return { success: false, message: "Invalid recipient selection. Nothing was sent." };
+  }
+
+  let leadsQuery = supabase.from("leads").select("id, name, email, company, email_status")
+    .eq("owner_id", user.id).in("id", leadIds);
+  let clientsQuery = supabase.from("clients").select("id, name, email, notes")
+    .eq("owner_id", user.id).in("id", clientIds);
+  filterApplication(leadsQuery, applicationId);
+  filterApplication(clientsQuery, applicationId);
 
   const [leadsRes, clientsRes] = await Promise.all([
     leadIds.length
-      ? supabase.from("leads").select("id, name, email, company, email_status").in("id", leadIds)
-      : Promise.resolve({ data: [] as any[] }),
+      ? leadsQuery
+      : Promise.resolve({ data: [], error: null }),
     clientIds.length
-      ? supabase.from("clients").select("id, name, email, notes").in("id", clientIds)
-      : Promise.resolve({ data: [] as any[] }),
+      ? clientsQuery
+      : Promise.resolve({ data: [], error: null }),
   ]);
+
+  // Validate the entire batch before the first external email or enrollment.
+  if (leadsRes.error || clientsRes.error ||
+      leadsRes.data?.length !== leadIds.length || clientsRes.data?.length !== clientIds.length) {
+    return { success: false, message: "Some recipients are unavailable or outside this application. Nothing was sent. Reload and select recipients again." };
+  }
 
   const targets = [
     ...(leadsRes.data ?? []).map((l: any) => ({ kind: "lead" as const, id: l.id, name: l.name, email: l.email, company: l.company, bad: l.email_status === "invalid" })),
@@ -111,6 +139,7 @@ export async function sendEmails(
   revalidatePath("/outreach");
   revalidatePath("/leads");
   revalidatePath("/insights");
+  revalidatePath("/dashboard");
 
   const skipped = targets.length - sendable.length;
   if (!sent && failed) return { success: false, message: firstError || "Nothing was sent." };

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail, renderTemplate } from "@/lib/email/send";
+import { formatMoney, ledgerCurrency } from "@/lib/money";
+import { syncRepliesForConnectedOwner } from "@/lib/gmail/sync";
 
 // Runs once a day (vercel.json: 01:00 UTC = 9:00 AM in the Philippines).
 // Vercel sends "Authorization: Bearer $CRON_SECRET" automatically when the
@@ -24,6 +26,18 @@ export async function GET(request: Request) {
   const db = createAdminClient();
   const summary = { followUps: 0, meetingReminders: 0, balanceReminders: 0 };
   const now = new Date();
+
+  // ---------- 0. pull in replies from Gmail ----------
+  // First, so anyone who answered overnight is skipped by the follow-ups below.
+  // A Gmail problem (expired login, missing permission) must never stop the
+  // rest of the run, so it is caught and reported in the response instead.
+  let replies: { added: number; checked: number; bounces: number } | null = null;
+  let repliesError: string | null = null;
+  try {
+    replies = await syncRepliesForConnectedOwner();
+  } catch (e) {
+    repliesError = e instanceof Error ? e.message : "Reply check failed.";
+  }
 
   // ---------- 1. follow-up sequences ----------
   const { data: due } = await db
@@ -155,9 +169,9 @@ export async function GET(request: Request) {
       if (!last || new Date(last) > cutoff) continue;
       if (c.last_balance_reminder_at && new Date(c.last_balance_reminder_at) > cutoff) continue;
 
-      const balance = Number(owing!.find((r) => r.client_id === c.id)!.balance).toFixed(2);
+      const balance = formatMoney(Number(owing!.find((r) => r.client_id === c.id)!.balance), ledgerCurrency(c.currency));
       const subject = "Friendly reminder: outstanding balance";
-      const body = `Hi ${c.name.split(" ")[0]},\n\nA friendly reminder that there is an outstanding balance of $${balance} on your account.\n\nIf you've already sent payment, thank you — please disregard this note. Otherwise, reply here and we'll sort out the details.\n`;
+      const body = `Hi ${c.name.split(" ")[0]},\n\nA friendly reminder that there is an outstanding balance of ${balance} on your account.\n\nIf you've already sent payment, thank you — please disregard this note. Otherwise, reply here and we'll sort out the details.\n`;
       const result = await sendEmail({ to: c.email, subject, body });
       await db.from("email_messages").insert({
         owner_id: c.owner_id,
@@ -177,5 +191,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, ...summary });
+  return NextResponse.json({ ok: true, ...summary, replies, repliesError });
 }

@@ -22,7 +22,10 @@ export function getAuthUrl(redirectUri: string) {
     // Forces Google to re-issue a refresh_token every time. Without this,
     // reconnecting after a disconnect can silently fail to return one.
     prompt: "consent",
-    scope: "https://www.googleapis.com/auth/calendar",
+    // CHANGED: gmail.readonly added, so Alfred can read replies from your leads
+    // and clients. Space-separated. It cannot send, delete or change mail.
+    scope:
+      "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.readonly",
   });
   return `${GOOGLE_AUTH_URL}?${params.toString()}`;
 }
@@ -44,6 +47,7 @@ export async function exchangeCodeForTokens(code: string, redirectUri: string) {
     access_token: string;
     refresh_token?: string;
     expires_in: number;
+    scope?: string; // CHANGED: the scopes you actually granted
   }>;
 }
 

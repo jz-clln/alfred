@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { sendEmails } from "./actions";
+import type { ActionState } from "@/lib/action-state";
 
 interface Person { id: string; name: string; email: string | null; bad?: boolean }
 
@@ -82,13 +82,20 @@ function RecipientList({
 }
 
 export function ComposeForm({
-  clients, leads, sequences, initialChecked = [],
+  clients, leads, sequences, sendAction, initialChecked = [],
 }: {
   clients: Person[]; leads: Person[]; sequences: { id: string; name: string }[]; initialChecked?: string[];
+  sendAction: (previous: ActionState, formData: FormData) => Promise<ActionState>;
 }) {
-  const [state, formAction] = useFormState(sendEmails, initialActionState);
+  const [state, formAction] = useFormState(sendAction, initialActionState);
   const formRef = useRef<HTMLFormElement>(null);
-  const [checked, setChecked] = useState<Set<string>>(new Set(initialChecked));
+  const [checked, setChecked] = useState<Set<string>>(() => {
+    const available = new Set([
+      ...clients.filter((p) => p.email && !p.bad).map((p) => `client:${p.id}`),
+      ...leads.filter((p) => p.email && !p.bad).map((p) => `lead:${p.id}`),
+    ]);
+    return new Set(initialChecked.filter((id) => available.has(id)));
+  });
   useFormFeedback(state, formRef, () => setChecked(new Set()));
 
   const toggle = (k: string) =>
