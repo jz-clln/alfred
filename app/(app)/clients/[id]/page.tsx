@@ -7,14 +7,17 @@ import { Card } from "@/components/ui/card";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { AddBalanceEntryForm } from "./AddBalanceEntryForm";
-
-const money = (n: number) =>
-  `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+import { ClientCurrencyForm } from "./ClientCurrencyForm";
+import { formatMoney, ledgerCurrency } from "@/lib/money";
+import { getDisplayCurrency } from "@/lib/currency-preference";
+import { getExchangeRate } from "@/lib/exchange-rates";
+import { Money, ExchangeRateNote } from "@/components/Money";
 
 export default async function ClientDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
+  const displayCurrency = getDisplayCurrency();
 
-  const [{ data: client }, { data: entries }, { data: balanceRow }, { data: projects }, { data: emails }] =
+  const [{ data: client }, { data: entries }, { data: balanceRow }, { data: projects }, { data: emails }, rate] =
     await Promise.all([
       supabase.from("clients").select("*").eq("id", params.id).single(),
       supabase.from("balance_entries").select("*").eq("client_id", params.id).order("entry_date", { ascending: false }),
@@ -26,13 +29,15 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
         .eq("client_id", params.id)
         .order("sent_at", { ascending: false })
         .limit(5),
+      getExchangeRate(),
     ]);
 
   if (!client) notFound();
   const balance = Number(balanceRow?.balance ?? 0);
+  const currency = ledgerCurrency(client.currency);
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-6xl">
       <Link href="/clients" className="text-sm text-moss">Clients</Link>
 
       <div className="mb-8 mt-2 flex items-start justify-between gap-4">
@@ -49,9 +54,17 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
         </div>
         <div className="shrink-0 text-right">
           <div className="text-xs text-ink-soft">Balance</div>
-          <div className={`font-display text-3xl ${balance > 0 ? "text-rust" : "text-moss"}`}>{money(balance)}</div>
+          <div className={`font-display text-3xl ${balance > 0 ? "text-rust" : "text-moss"}`}>
+            <Money amount={balance} currency={currency} displayCurrency={displayCurrency} rate={rate} />
+          </div>
         </div>
       </div>
+
+      <Card className="mb-8 space-y-3 p-4">
+        {entries?.length ? <p className="text-sm text-ink-soft">Billing currency: {currency}. Existing ledger entries keep their original currency.</p>
+          : <ClientCurrencyForm key={currency} clientId={params.id} currency={currency} />}
+        <ExchangeRateNote rate={rate} />
+      </Card>
 
       {!!projects?.length && (
         <>
@@ -79,7 +92,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
           description="Log an invoice you sent or a payment you received."
           variant="secondary"
         >
-          <AddBalanceEntryForm clientId={params.id} />
+          <AddBalanceEntryForm key={currency} clientId={params.id} currency={currency} />
         </FormDialog>
       </div>
       <Card className="overflow-hidden">
@@ -88,7 +101,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             <TableRow>
               <TableHead>Date</TableHead>
               <TableHead>Entry</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="text-right">Amount ({currency})</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -103,7 +116,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                   className={`whitespace-nowrap text-right tabular-nums ${e.type === "invoice" ? "text-rust" : "text-moss"}`}
                 >
                   {e.type === "invoice" ? "+" : "−"}
-                  {money(e.amount)}
+                  {formatMoney(Number(e.amount), ledgerCurrency(e.currency ?? currency))}
                 </TableCell>
               </TableRow>
             ))}

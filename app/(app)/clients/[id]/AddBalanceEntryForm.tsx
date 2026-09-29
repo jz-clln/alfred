@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { addBalanceEntry } from "../actions";
+import type { Currency } from "@/lib/money";
 
-export function AddBalanceEntryForm({ clientId }: { clientId: string }) {
+export function AddBalanceEntryForm({ clientId, currency }: { clientId: string; currency: Currency }) {
   const boundAction = addBalanceEntry.bind(null, clientId);
   const [state, formAction] = useFormState(boundAction, initialActionState);
   const formRef = useRef<HTMLFormElement>(null);
@@ -18,6 +19,7 @@ export function AddBalanceEntryForm({ clientId }: { clientId: string }) {
 
   return (
     <form ref={formRef} action={formAction} className="grid gap-4">
+      <input type="hidden" name="currency" value={currency} />
       <Field label="Type" htmlFor="b-type">
         <Select
           id="b-type"
@@ -29,7 +31,7 @@ export function AddBalanceEntryForm({ clientId }: { clientId: string }) {
           ]}
         />
       </Field>
-      <Field label="Amount" htmlFor="b-amount">
+      <Field label={`Amount (${currency})`} htmlFor="b-amount" hint="Enter the amount in the client's billing currency, not the converted display amount.">
         <Input id="b-amount" name="amount" type="number" step="0.01" min="0" inputMode="decimal" required />
       </Field>
       <Field label="Memo" htmlFor="b-memo" hint="Optional. Shows in the ledger.">
