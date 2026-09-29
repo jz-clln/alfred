@@ -1,23 +1,34 @@
 import { createClient } from "@/lib/supabase/server";
-import { PageTitle, Group } from "@/components/ui/kit";
-
-const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0);
+import { PageTitle } from "@/components/ui/kit";
+import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 
 function Bar({ label, value, of, note }: { label: string; value: number; of: number; note?: string }) {
-  const p = pct(value, of);
+  const hasData = of > 0;
+  const p = hasData ? Math.round((value / of) * 100) : 0;
   return (
     <li className="px-4 py-3.5">
       <div className="mb-2 flex items-baseline justify-between text-sm">
         <span>{label}</span>
-        <span className="font-display text-xl">{p}%</span>
+        <span className="font-display text-xl">{hasData ? `${p}%` : "—"}</span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-fill">
-        <div className="h-full rounded-full bg-moss" style={{ width: `${p}%` }} />
-      </div>
+      <Progress value={p} label={`${label}: ${hasData ? `${p} percent` : "no data yet"}`} />
       <div className="mt-1.5 text-xs text-ink-soft">
-        {value} of {of}{note ? ` · ${note}` : ""}
+        {hasData ? `${value} of ${of}` : "No data yet"}
+        {note ? ` · ${note}` : ""}
       </div>
     </li>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <h2 className="mb-3 text-lg">{title}</h2>
+      <Card className="overflow-hidden">
+        <ul className="divide-y divide-border/70">{children}</ul>
+      </Card>
+    </section>
   );
 }
 
@@ -39,21 +50,21 @@ export default async function InsightsPage() {
   const bounced = outbound.filter((m) => m.status === "bounced").length;
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <PageTitle title="Insights" sub="How your outreach is turning into work." />
 
-      <h2 className="mb-3 text-lg">Leads</h2>
-      <Group>
-        <Bar label="Response rate" value={replied} of={contacted} note="contacted leads who replied" />
-        <Bar label="Meeting rate" value={meetings} of={contacted} note="contacted leads who booked" />
-        <Bar label="Conversion rate" value={won} of={all.length} note="all leads who became clients" />
-      </Group>
+      <div className="space-y-10">
+        <Section title="Leads">
+          <Bar label="Response rate" value={replied} of={contacted} note="contacted leads who replied" />
+          <Bar label="Meeting rate" value={meetings} of={contacted} note="contacted leads who booked" />
+          <Bar label="Conversion rate" value={won} of={all.length} note="all leads who became clients" />
+        </Section>
 
-      <h2 className="mb-3 mt-10 text-lg">Emails</h2>
-      <Group>
-        <Bar label="Open rate" value={opened} of={outbound.length} note="treat as a rough guide" />
-        <Bar label="Bounce rate" value={bounced} of={outbound.length} />
-      </Group>
+        <Section title="Emails">
+          <Bar label="Open rate" value={opened} of={outbound.length} note="treat as a rough guide" />
+          <Bar label="Bounce rate" value={bounced} of={outbound.length} />
+        </Section>
+      </div>
 
       <p className="mt-6 max-w-prose text-sm text-ink-soft">
         Replies count when you mark a lead as replied, so keep that up to date for accurate rates. Open

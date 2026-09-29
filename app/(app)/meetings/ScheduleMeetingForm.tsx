@@ -1,49 +1,54 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
+import Link from "next/link";
 import { useFormState } from "react-dom";
 import { SubmitButton } from "@/components/SubmitButton";
-import { useToast } from "@/components/toast/ToastProvider";
+import { useFormFeedback } from "@/components/useFormFeedback";
 import { initialActionState } from "@/lib/action-state";
-import { field, label } from "@/components/ui/kit";
+import { Input } from "@/components/ui/input";
+import { Field } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { scheduleMeeting } from "./actions";
+
+const DURATIONS = [15, 30, 45, 60, 90];
 
 export function ScheduleMeetingForm({ clients }: { clients: { id: string; name: string }[] }) {
   const [state, formAction] = useFormState(scheduleMeeting, initialActionState);
-  const { showToast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
-
-  useEffect(() => {
-    if (!state.message) return;
-    showToast(state.message, state.success ? "success" : "error");
-    if (state.success) formRef.current?.reset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  useFormFeedback(state, formRef);
+  const clientOptions = clients.map((c) => ({ value: c.id, label: c.name }));
 
   return (
-    <form ref={formRef} action={formAction} className="grid gap-3 sm:grid-cols-2">
-      <select name="client_id" required aria-label="Client" className={field}>
-        <option value="">Choose a client…</option>
-        {clients.map((c) => (
-          <option key={c.id} value={c.id}>{c.name}</option>
-        ))}
-      </select>
-      <input name="title" required placeholder="Title" className={field} />
-      <div>
-        <label htmlFor="m-date" className={label}>Date</label>
-        <input id="m-date" name="date" type="date" required className={field} />
-      </div>
-      <div>
-        <label htmlFor="m-time" className={label}>Time (Philippine time)</label>
-        <input id="m-time" name="time" type="time" required className={field} />
-      </div>
-      <div>
-        <label htmlFor="m-min" className={label}>Minutes</label>
-        <input id="m-min" name="duration" type="number" defaultValue={30} min={15} step={15} className={field} />
-      </div>
-      <div className="flex items-end">
-        <SubmitButton pendingLabel="Scheduling…">Schedule</SubmitButton>
-      </div>
+    <form ref={formRef} action={formAction} className="grid gap-4 sm:grid-cols-2">
+      {!clients.length && (
+        <p className="rounded-xl bg-muted px-3.5 py-3 text-sm text-ink-soft sm:col-span-2">
+          You need a client first. <Link href="/clients" className="text-moss underline">Add one</Link>, then come back.
+        </p>
+      )}
+      <Field label="Client" htmlFor="m-client">
+        <Select id="m-client" name="client_id" required placeholder="Choose a client…" options={clientOptions} disabled={!clients.length} />
+      </Field>
+      <Field label="Title" htmlFor="m-title">
+        <Input id="m-title" name="title" required autoComplete="off" />
+      </Field>
+      <Field label="Date" htmlFor="m-date">
+        <Input id="m-date" name="date" type="date" required />
+      </Field>
+      <Field label="Time (Philippine time)" htmlFor="m-time">
+        <Input id="m-time" name="time" type="time" required />
+      </Field>
+      <Field label="Length" htmlFor="m-min" className="sm:col-span-2">
+        <Select
+          id="m-min"
+          name="duration"
+          defaultValue="30"
+          options={DURATIONS.map((d) => ({ value: String(d), label: d + " minutes" }))}
+        />
+      </Field>
+      <SubmitButton pendingLabel="Scheduling…" className="w-full sm:col-span-2 sm:w-auto sm:justify-self-end">
+        Schedule
+      </SubmitButton>
     </form>
   );
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PageTitle, Group, EmptyState, StatusChip } from "@/components/ui/kit";
+import { FormDialog } from "@/components/ui/form-dialog";
 import { AddClientForm } from "./AddClientForm";
 
 const money = (n: number) =>
@@ -14,8 +15,16 @@ export default async function ClientsPage() {
     .order("name");
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <PageTitle title="Clients" sub={clients?.length ? `${clients.length} in your book.` : undefined} />
+    <div className="max-w-3xl">
+      <PageTitle
+        title="Clients"
+        sub={clients?.length ? `${clients.length} in your book.` : undefined}
+        action={
+          <FormDialog triggerLabel="Add client" title="Add a client">
+            <AddClientForm />
+          </FormDialog>
+        }
+      />
 
       <Group>
         {clients?.map((c: any) => {
@@ -37,11 +46,8 @@ export default async function ClientsPage() {
             </li>
           );
         })}
-        {!clients?.length && <EmptyState>No clients yet. Add your first one below.</EmptyState>}
+        {!clients?.length && <EmptyState>No clients yet. Tap “Add client” to start.</EmptyState>}
       </Group>
-
-      <h2 className="mb-3 mt-10 text-lg">Add a client</h2>
-      <AddClientForm />
     </div>
   );
 }

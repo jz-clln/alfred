@@ -1,14 +1,11 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { scoreLead, type Temperature } from "@/lib/leads/score";
-import { PageTitle, Group, EmptyState, TempBadge } from "@/components/ui/kit";
+import { PageTitle, Group, EmptyState, TempBadge, StatusChip } from "@/components/ui/kit";
+import { Button } from "@/components/ui/button";
+import { FormDialog } from "@/components/ui/form-dialog";
 import { AddLeadForm } from "./AddLeadForm";
-import {
-  checkLeadEmail,
-  markLeadReplied,
-  setLeadStage,
-  convertLeadToClient,
-} from "./actions";
+import { LeadActions } from "./LeadActions";
 
 const FILTERS: { key: "all" | Temperature; label: string }[] = [
   { key: "all", label: "All" },
@@ -17,22 +14,10 @@ const FILTERS: { key: "all" | Temperature; label: string }[] = [
   { key: "cold", label: "Cold" },
 ];
 
-function Act({ action, children, tone = "default" }: { action: () => Promise<void>; children: React.ReactNode; tone?: "default" | "danger" }) {
-  return (
-    <form action={action}>
-      <button
-        type="submit"
-        className={`tap rounded-lg px-2.5 py-1 text-xs ${
-          tone === "danger" ? "text-rust hover:bg-rust-soft" : "text-moss hover:bg-moss-soft"
-        }`}
-      >
-        {children}
-      </button>
-    </form>
-  );
-}
+const stageTone = (s: string) =>
+  s === "replied" || s === "meeting" || s === "won" ? "moss" : "neutral";
 
-export default async function LeadsPage({ searchParams }: { searchParams: { t?: string } }) {
+export default async function LeadsPage({ searchParams }: { searchParams: { t?: string; q?: string } }) {
   const supabase = createClient();
   const [{ data: leads }, { data: messages }] = await Promise.all([
     supabase.from("leads").select("*").order("created_at", { ascending: false }),
@@ -44,7 +29,16 @@ export default async function LeadsPage({ searchParams }: { searchParams: { t?: 
     byLead.set(m.lead_id, [...(byLead.get(m.lead_id) ?? []), m]);
   }
 
+  // ?q= comes from the search palette. Matches name, company, or email.
+  const q = (searchParams.q ?? "").trim();
+  const needle = q.toLowerCase();
+
   const scored = (leads ?? [])
+    .filter(
+      (l) =>
+        !needle ||
+        [l.name, l.company, l.email].some((v: string | null) => v?.toLowerCase().includes(needle))
+    )
     .map((l) => ({ lead: l, ...scoreLead(l, byLead.get(l.id) ?? []) }))
     .sort((a, b) => b.score - a.score);
 
@@ -53,66 +47,94 @@ export default async function LeadsPage({ searchParams }: { searchParams: { t?: 
   const counts = { hot: 0, warm: 0, cold: 0 } as Record<Temperature, number>;
   scored.forEach((s) => counts[s.temperature]++);
 
-  return (
-    <div className="mx-auto max-w-3xl">
-      <PageTitle title="Leads" sub="Sorted by how ready they are to hear from you." />
+  const href = (t: string) => {
+    const p = new URLSearchParams();
+    if (t !== "all") p.set("t", t);
+    if (q) p.set("q", q);
+    const s = p.toString();
+    return s ? `/leads?${s}` : "/leads";
+  };
 
-      <div className="mb-5 flex gap-1.5 overflow-x-auto">
-        {FILTERS.map((f) => (
-          <Link
-            key={f.key}
-            href={f.key === "all" ? "/leads" : `/leads?t=${f.key}`}
-            className={`tap shrink-0 rounded-full px-3.5 py-1.5 text-sm ${
-              filter === f.key ? "bg-ink text-paper" : "bg-fill text-ink-soft hover:text-ink"
-            }`}
-          >
-            {f.label}
-            {f.key !== "all" && <span className="ml-1.5 opacity-60">{counts[f.key as Temperature]}</span>}
-          </Link>
-        ))}
-      </div>
+  return (
+    <div className="max-w-3xl">
+      <PageTitle
+        title="Leads"
+        sub="Sorted by how ready they are to hear from you."
+        action={
+          <FormDialog triggerLabel="Add lead" title="Add a lead" wide>
+            <AddLeadForm />
+          </FormDialog>
+        }
+      />
+
+      <nav aria-label="Filter leads" className="mb-5 flex flex-wrap items-center gap-1.5">
+        {FILTERS.map((f) => {
+          const active = filter === f.key;
+          return (
+            <Button
+              key={f.key}
+              asChild
+              size="pill"
+              variant={active ? "default" : "pill"}
+              className="rounded-full"
+            >
+              <Link href={href(f.key)} aria-current={active ? "page" : undefined}>
+                {f.label}
+                {f.key !== "all" && <span className="opacity-70">{counts[f.key as Temperature]}</span>}
+              </Link>
+            </Button>
+          );
+        })}
+        {q && (
+          <Button asChild size="pill" variant="outline" className="rounded-full">
+            <Link href={filter === "all" ? "/leads" : `/leads?t=${filter}`} aria-label={`Clear search for ${q}`}>
+              “{q}” ✕
+            </Link>
+          </Button>
+        )}
+      </nav>
 
       <Group>
         {shown.map(({ lead, temperature, reasons }) => (
           <li key={lead.id} className="px-4 py-3.5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="truncate font-medium">{lead.name}</span>
                   <TempBadge temperature={temperature} />
+                  {lead.email_status === "invalid" && <StatusChip tone="rust">bad email</StatusChip>}
+                  {lead.email_status === "risky" && <StatusChip tone="brass">risky email</StatusChip>}
                 </div>
                 <div className="mt-0.5 truncate text-sm text-ink-soft">
                   {[lead.company, lead.email].filter(Boolean).join(" · ") || "No contact details"}
-                  {lead.email_status === "invalid" && <span className="ml-1.5 text-rust">· bad email</span>}
-                  {lead.email_status === "risky" && <span className="ml-1.5 text-brass">· risky email</span>}
                 </div>
-                {!!reasons.length && (
-                  <div className="mt-1 text-xs text-ink-soft/80">{reasons.join(", ")}</div>
-                )}
+                {!!reasons.length && <div className="mt-1 text-xs text-ink-soft">{reasons.join(", ")}</div>}
               </div>
-              <div className="shrink-0 text-right text-xs capitalize text-ink-soft">{lead.stage}</div>
+              <StatusChip tone={stageTone(lead.stage)}>{lead.stage}</StatusChip>
             </div>
 
             {lead.stage !== "won" && lead.stage !== "lost" && (
-              <div className="-ml-2.5 mt-2 flex flex-wrap">
-                {lead.email && <Act action={checkLeadEmail.bind(null, lead.id)}>Check email</Act>}
-                {lead.stage !== "replied" && <Act action={markLeadReplied.bind(null, lead.id)}>Mark replied</Act>}
-                {lead.stage !== "meeting" && <Act action={setLeadStage.bind(null, lead.id, "meeting")}>Meeting booked</Act>}
-                <Act action={convertLeadToClient.bind(null, lead.id)}>Make client</Act>
-                <Act action={setLeadStage.bind(null, lead.id, "lost")} tone="danger">Lost</Act>
-              </div>
+              <LeadActions
+                lead={{ id: lead.id, name: lead.name, stage: lead.stage, email: lead.email }}
+              />
+            )}
+            {lead.stage === "won" && lead.client_id && (
+              <Button asChild variant="link" className="mt-1 h-auto px-0">
+                <Link href={`/clients/${lead.client_id}`}>View client</Link>
+              </Button>
             )}
           </li>
         ))}
         {!shown.length && (
           <EmptyState>
-            {filter === "all" ? "No leads yet. Add your first one below." : `No ${filter} leads right now.`}
+            {q
+              ? `No leads match “${q}”.`
+              : filter === "all"
+                ? "No leads yet. Tap “Add lead” to start."
+                : `No ${filter} leads right now.`}
           </EmptyState>
         )}
       </Group>
-
-      <h2 className="mb-3 mt-10 text-lg">Add a lead</h2>
-      <AddLeadForm />
     </div>
   );
 }

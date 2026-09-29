@@ -13,6 +13,12 @@ async function requireUser() {
   return { supabase, user };
 }
 
+// CHANGED: database errors now throw. Before, a failed update looked like a
+// success. LeadActions.tsx catches the throw, and shows an error toast.
+function must(error: { message: string } | null) {
+  if (error) throw new Error(error.message);
+}
+
 export async function createLead(
   _prev: ActionState,
   formData: FormData
@@ -44,21 +50,25 @@ export async function createLead(
   };
 }
 
+// CHANGED: returns the new status so the UI can say what it found.
 export async function checkLeadEmail(leadId: string) {
   const { supabase } = await requireUser();
   const { data: lead } = await supabase.from("leads").select("email").eq("id", leadId).single();
-  if (!lead?.email) return;
+  if (!lead?.email) return "unchecked";
   const email_status = await checkEmail(lead.email);
-  await supabase.from("leads").update({ email_status }).eq("id", leadId);
+  const { error } = await supabase.from("leads").update({ email_status }).eq("id", leadId);
+  must(error);
   revalidatePath("/leads");
+  return email_status;
 }
 
 export async function markLeadReplied(leadId: string) {
   const { supabase } = await requireUser();
-  await supabase
+  const { error } = await supabase
     .from("leads")
     .update({ stage: "replied", last_replied_at: new Date().toISOString() })
     .eq("id", leadId);
+  must(error);
   // A reply ends any follow-up sequence for this lead.
   await supabase
     .from("sequence_enrollments")
@@ -72,7 +82,8 @@ export async function markLeadReplied(leadId: string) {
 
 export async function setLeadStage(leadId: string, stage: "meeting" | "lost" | "contacted") {
   const { supabase } = await requireUser();
-  await supabase.from("leads").update({ stage }).eq("id", leadId);
+  const { error } = await supabase.from("leads").update({ stage }).eq("id", leadId);
+  must(error);
   if (stage === "meeting" || stage === "lost") {
     await supabase
       .from("sequence_enrollments")
@@ -89,14 +100,19 @@ export async function convertLeadToClient(leadId: string) {
   const { data: lead } = await supabase.from("leads").select("*").eq("id", leadId).single();
   if (!lead || lead.client_id) return;
 
-  const { data: client } = await supabase
+  const { data: client, error } = await supabase
     .from("clients")
     .insert({ owner_id: user.id, name: lead.name, email: lead.email, notes: lead.company })
     .select("id")
     .single();
-  if (!client) return;
+  must(error);
+  if (!client) throw new Error("Couldn't create the client.");
 
-  await supabase.from("leads").update({ stage: "won", client_id: client.id }).eq("id", leadId);
+  const { error: updateError } = await supabase
+    .from("leads")
+    .update({ stage: "won", client_id: client.id })
+    .eq("id", leadId);
+  must(updateError);
   await supabase
     .from("sequence_enrollments")
     .update({ status: "stopped" })

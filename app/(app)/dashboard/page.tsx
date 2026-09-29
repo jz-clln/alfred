@@ -82,7 +82,7 @@ export default async function DashboardPage() {
   const tone = { rust: "bg-rust", moss: "bg-moss", ink: "bg-ink-soft" };
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <h1 className="text-4xl font-medium md:text-[2.6rem] md:leading-[1.1]">{greeting()}, sir.</h1>
       <p className="mt-3 text-lg text-ink-soft">
         {items.length

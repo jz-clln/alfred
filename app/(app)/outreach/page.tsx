@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PageTitle, Group, EmptyState } from "@/components/ui/kit";
+import { Button } from "@/components/ui/button";
 import { ComposeForm } from "./ComposeForm";
 
 const kindLabel: Record<string, string> = { manual: "Email", follow_up: "Follow-up", reminder: "Reminder" };
@@ -19,11 +20,15 @@ export default async function OutreachPage({ searchParams }: { searchParams: { t
   ]);
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <PageTitle
         title="Outreach"
         sub="Write once, send to as many people as you like."
-        action={<Link href="/outreach/sequences" className="tap rounded-full bg-fill px-3.5 py-1.5 text-sm text-ink-soft hover:text-ink">Follow-up sequences</Link>}
+        action={
+          <Button asChild variant="pill" size="pill" className="shrink-0">
+            <Link href="/outreach/sequences">Follow-up sequences</Link>
+          </Button>
+        }
       />
 
       <ComposeForm

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PageTitle, Group, EmptyState } from "@/components/ui/kit";
+import { Button } from "@/components/ui/button";
+import { FormDialog } from "@/components/ui/form-dialog";
 import { SequenceForm } from "./SequenceForm";
 
 export default async function SequencesPage() {
@@ -13,11 +15,20 @@ export default async function SequencesPage() {
   const count = (rows: any[] | null, id: string) => (rows ?? []).filter((r) => r.sequence_id === id).length;
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <PageTitle
         title="Follow-ups"
         sub="Automatic nudges for leads who haven't answered."
-        action={<Link href="/outreach" className="tap rounded-full bg-fill px-3.5 py-1.5 text-sm text-ink-soft hover:text-ink">Back to outreach</Link>}
+        action={
+          <div className="flex shrink-0 items-center gap-2">
+            <Button asChild variant="pill" size="pill">
+              <Link href="/outreach">Back to outreach</Link>
+            </Button>
+            <FormDialog triggerLabel="New sequence" title="New sequence" wide>
+              <SequenceForm />
+            </FormDialog>
+          </div>
+        }
       />
       <Group>
         {sequences?.map((s) => (
@@ -28,10 +39,8 @@ export default async function SequencesPage() {
             </span>
           </li>
         ))}
-        {!sequences?.length && <EmptyState>No sequences yet. Create one below.</EmptyState>}
+        {!sequences?.length && <EmptyState>No sequences yet. Tap “New sequence” to create one.</EmptyState>}
       </Group>
-      <h2 className="mb-3 mt-10 text-lg">New sequence</h2>
-      <SequenceForm />
     </div>
   );
 }

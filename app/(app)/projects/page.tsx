@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PageTitle, Group, EmptyState, StatusChip } from "@/components/ui/kit";
+import { FormDialog } from "@/components/ui/form-dialog";
 import { philippineDate } from "@/lib/time";
 import { AddProjectForm } from "./AddProjectForm";
 
@@ -13,8 +14,15 @@ export default async function ProjectsPage() {
   const today = philippineDate();
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <PageTitle title="Projects" />
+    <div className="max-w-3xl">
+      <PageTitle
+        title="Projects"
+        action={
+          <FormDialog triggerLabel="Add project" title="Add a project">
+            <AddProjectForm clients={clients ?? []} />
+          </FormDialog>
+        }
+      />
 
       <Group>
         {projects?.map((p: any) => {
@@ -38,11 +46,8 @@ export default async function ProjectsPage() {
             </li>
           );
         })}
-        {!projects?.length && <EmptyState>No projects yet. Add your first one below.</EmptyState>}
+        {!projects?.length && <EmptyState>No projects yet. Tap “Add project” to start.</EmptyState>}
       </Group>
-
-      <h2 className="mb-3 mt-10 text-lg">Add a project</h2>
-      <AddProjectForm clients={clients ?? []} />
     </div>
   );
 }

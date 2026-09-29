@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { Group, EmptyState, StatusChip } from "@/components/ui/kit";
+import { Group, StatusChip } from "@/components/ui/kit";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { FormDialog } from "@/components/ui/form-dialog";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { AddBalanceEntryForm } from "./AddBalanceEntryForm";
 
 const money = (n: number) =>
@@ -28,7 +32,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
   const balance = Number(balanceRow?.balance ?? 0);
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <Link href="/clients" className="text-sm text-moss">Clients</Link>
 
       <div className="mb-8 mt-2 flex items-start justify-between gap-4">
@@ -38,12 +42,9 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             {[client.email, client.phone].filter(Boolean).join(" · ") || "No contact details"}
           </p>
           {client.email && (
-            <Link
-              href={`/outreach?to=client:${client.id}`}
-              className="tap mt-3 inline-block rounded-full bg-fill px-3.5 py-1.5 text-sm text-ink-soft hover:text-ink"
-            >
-              Write an email
-            </Link>
+            <Button asChild variant="pill" size="pill" className="mt-3">
+              <Link href={`/outreach?to=client:${client.id}`}>Write an email</Link>
+            </Button>
           )}
         </div>
         <div className="shrink-0 text-right">
@@ -70,25 +71,52 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
         </>
       )}
 
-      <h2 className="mb-3 text-lg">Ledger</h2>
-      <Group>
-        {entries?.map((e) => (
-          <li key={e.id} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-            <div className="min-w-0">
-              <div className="capitalize">{e.type}{e.memo ? <span className="text-ink-soft"> · {e.memo}</span> : null}</div>
-              <div className="text-xs text-ink-soft">{e.entry_date}</div>
-            </div>
-            <div className={e.type === "invoice" ? "text-rust" : "text-moss"}>
-              {e.type === "invoice" ? "+" : "−"}{money(e.amount)}
-            </div>
-          </li>
-        ))}
-        {!entries?.length && <EmptyState>No entries yet.</EmptyState>}
-      </Group>
-
-      <div className="mt-4">
-        <AddBalanceEntryForm clientId={params.id} />
+      <div className="mb-3 flex items-center justify-between gap-4">
+        <h2 className="text-lg">Ledger</h2>
+        <FormDialog
+          triggerLabel="Add entry"
+          title="Add a ledger entry"
+          description="Log an invoice you sent or a payment you received."
+          variant="secondary"
+        >
+          <AddBalanceEntryForm clientId={params.id} />
+        </FormDialog>
       </div>
+      <Card className="overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>Entry</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {entries?.map((e) => (
+              <TableRow key={e.id}>
+                <TableCell className="whitespace-nowrap text-xs text-ink-soft">{e.entry_date}</TableCell>
+                <TableCell className="min-w-0">
+                  <span className="capitalize">{e.type}</span>
+                  {e.memo && <span className="text-ink-soft"> · {e.memo}</span>}
+                </TableCell>
+                <TableCell
+                  className={`whitespace-nowrap text-right tabular-nums ${e.type === "invoice" ? "text-rust" : "text-moss"}`}
+                >
+                  {e.type === "invoice" ? "+" : "−"}
+                  {money(e.amount)}
+                </TableCell>
+              </TableRow>
+            ))}
+            {!entries?.length && (
+              <TableRow>
+                <TableCell colSpan={3} className="py-8 text-center text-ink-soft">
+                  No entries yet.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </Card>
 
       {!!emails?.length && (
         <>

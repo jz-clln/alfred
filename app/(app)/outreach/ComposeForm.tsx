@@ -1,16 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useFormState } from "react-dom";
 import { SubmitButton } from "@/components/SubmitButton";
-import { useToast } from "@/components/toast/ToastProvider";
+import { useFormFeedback } from "@/components/useFormFeedback";
 import { initialActionState } from "@/lib/action-state";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Field } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { sendEmails } from "./actions";
 
 interface Person { id: string; name: string; email: string | null; bad?: boolean }
 
-const field =
-  "w-full rounded-xl bg-fill px-3.5 py-2.5 text-sm outline-none placeholder:text-ink-soft/70 focus:ring-2 focus:ring-moss/30";
+const MAX_RECIPIENTS = 50; // keep in sync with actions.ts
 
 function RecipientList({
   title, prefix, people, checked, toggle, setAll,
@@ -18,29 +22,47 @@ function RecipientList({
   title: string; prefix: string; people: Person[];
   checked: Set<string>; toggle: (k: string) => void; setAll: (keys: string[], on: boolean) => void;
 }) {
-  const usable = people.filter((p) => p.email && !p.bad).map((p) => `${prefix}:${p.id}`);
+  const [q, setQ] = useState("");
+  const shown = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return people;
+    return people.filter((p) => p.name.toLowerCase().includes(s) || (p.email ?? "").toLowerCase().includes(s));
+  }, [q, people]);
+
+  const usable = shown.filter((p) => p.email && !p.bad).map((p) => `${prefix}:${p.id}`);
   const allOn = usable.length > 0 && usable.every((k) => checked.has(k));
+
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-sm text-ink-soft">{title}</span>
+        <span className="text-sm font-medium">{title}</span>
         {!!usable.length && (
-          <button type="button" onClick={() => setAll(usable, !allOn)} className="text-xs text-moss">
-            {allOn ? "Clear" : "Select all"}
-          </button>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setAll(usable, !allOn)}>
+            {allOn ? "Clear" : q ? "Select shown" : "Select all"}
+          </Button>
         )}
       </div>
-      <ul className="max-h-56 divide-y divide-line/70 overflow-y-auto rounded-2xl bg-surface">
-        {people.map((p) => {
+      {people.length > 5 && (
+        <Input
+          type="search"
+          aria-label={`Search ${title.toLowerCase()}`}
+          placeholder={`Search ${title.toLowerCase()}`}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          className="mb-2 h-10"
+        />
+      )}
+      <ul className="max-h-56 divide-y divide-border/70 overflow-y-auto rounded-2xl bg-card">
+        {shown.map((p) => {
           const key = `${prefix}:${p.id}`;
           const disabled = !p.email || p.bad;
           return (
             <li key={key}>
-              <label className={`flex items-center gap-3 px-4 py-2.5 text-sm ${disabled ? "opacity-45" : "cursor-pointer"}`}>
+              <label className={`flex min-h-11 items-center gap-3 px-4 py-2.5 text-sm ${disabled ? "opacity-60" : "cursor-pointer"}`}>
+                {/* No name here: submitted values come from the hidden inputs
+                    in the form, so filtered-out picks are never lost. */}
                 <input
                   type="checkbox"
-                  name="recipients"
-                  value={key}
                   disabled={disabled}
                   checked={checked.has(key)}
                   onChange={() => toggle(key)}
@@ -53,6 +75,7 @@ function RecipientList({
           );
         })}
         {!people.length && <li className="px-4 py-4 text-sm text-ink-soft">Nobody here yet.</li>}
+        {!!people.length && !shown.length && <li className="px-4 py-4 text-sm text-ink-soft">No matches.</li>}
       </ul>
     </div>
   );
@@ -64,56 +87,60 @@ export function ComposeForm({
   clients: Person[]; leads: Person[]; sequences: { id: string; name: string }[]; initialChecked?: string[];
 }) {
   const [state, formAction] = useFormState(sendEmails, initialActionState);
-  const { showToast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set(initialChecked));
-
-  useEffect(() => {
-    if (!state.message) return;
-    showToast(state.message, state.success ? "success" : "error");
-    if (state.success) { formRef.current?.reset(); setChecked(new Set()); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  useFormFeedback(state, formRef, () => setChecked(new Set()));
 
   const toggle = (k: string) =>
     setChecked((prev) => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const setAll = (keys: string[], on: boolean) =>
     setChecked((prev) => { const n = new Set(prev); keys.forEach((k) => (on ? n.add(k) : n.delete(k))); return n; });
 
+  const tooMany = checked.size > MAX_RECIPIENTS;
+
   return (
     <form ref={formRef} action={formAction} className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2">
+      {[...checked].map((k) => (
+        <input key={k} type="hidden" name="recipients" value={k} />
+      ))}
+
+      <div className="grid gap-5 md:grid-cols-2">
         <RecipientList title="Leads" prefix="lead" people={leads} checked={checked} toggle={toggle} setAll={setAll} />
         <RecipientList title="Clients" prefix="client" people={clients} checked={checked} toggle={toggle} setAll={setAll} />
       </div>
 
-      <div className="space-y-3">
-        <input name="subject" required placeholder="Subject" className={field} />
-        <textarea
-          name="body"
-          required
-          rows={9}
-          placeholder={"Hi {{first_name}},\n\n…"}
-          className={`${field} resize-y leading-relaxed`}
-        />
-        <p className="text-xs text-ink-soft">
-          Personalise with {"{{first_name}}"}, {"{{name}}"} and {"{{company}}"}. Each person gets their own copy.
-        </p>
+      <div className="space-y-4">
+        <Field label="Subject" htmlFor="o-subject">
+          <Input id="o-subject" name="subject" required autoComplete="off" />
+        </Field>
+        <Field
+          label="Message"
+          htmlFor="o-body"
+          hint="Personalise with {{first_name}}, {{name}} and {{company}}. Each person gets their own copy."
+        >
+          <Textarea id="o-body" name="body" required rows={9} placeholder={"Hi {{first_name}},\n\n…"} className="resize-y leading-relaxed" />
+        </Field>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <select name="sequence_id" className="rounded-xl bg-fill px-3.5 py-2.5 text-sm">
-          <option value="">No follow-ups</option>
-          {sequences.map((s) => (
-            <option key={s.id} value={s.id}>Follow up with “{s.name}” (leads only)</option>
-          ))}
-        </select>
-        <SubmitButton
-          pendingLabel="Sending…"
-          className="tap rounded-xl bg-moss px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50"
-        >
-          {checked.size ? `Send to ${checked.size}` : "Send"}
-        </SubmitButton>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <Field label="Automatic follow-ups" htmlFor="o-seq" className="w-full sm:w-72">
+          <Select
+            id="o-seq"
+            name="sequence_id"
+            emptyLabel="No follow-ups"
+            options={sequences.map((s) => ({ value: s.id, label: "“" + s.name + "” (leads only)" }))}
+          />
+        </Field>
+        <div className="w-full text-right sm:w-auto">
+          {tooMany && (
+            <p role="alert" className="mb-2 text-sm text-destructive">
+              Max {MAX_RECIPIENTS} per send. Unselect {checked.size - MAX_RECIPIENTS}.
+            </p>
+          )}
+          <SubmitButton pendingLabel="Sending…" className="w-full sm:w-auto">
+            {checked.size ? `Send to ${checked.size}` : "Send"}
+          </SubmitButton>
+        </div>
       </div>
     </form>
   );

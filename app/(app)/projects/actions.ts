@@ -5,6 +5,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionState } from "@/lib/action-state";
 
+const STATUSES = ["active", "on_hold", "completed"] as const;
+type ProjectStatus = (typeof STATUSES)[number];
+
 export async function createProjectRecord(
   _prevState: ActionState,
   formData: FormData
@@ -34,12 +37,20 @@ export async function createProjectRecord(
   return { success: true, message: `${name} was created.` };
 }
 
-export async function updateProjectStatus(
-  projectId: string,
-  status: "active" | "on_hold" | "completed"
-) {
+// CHANGED: checks the session, validates the value, and throws on a database
+// error. Before, a failed update looked like a success. The client control
+// catches the throw, rolls back, and shows an error toast.
+export async function updateProjectStatus(projectId: string, status: ProjectStatus) {
+  if (!STATUSES.includes(status)) throw new Error("Invalid status.");
   const supabase = createClient();
-  await supabase.from("projects").update({ status }).eq("id", projectId);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { error } = await supabase.from("projects").update({ status }).eq("id", projectId);
+  if (error) throw new Error(error.message);
+
   revalidatePath("/projects");
   revalidatePath(`/projects/${projectId}`);
 }
