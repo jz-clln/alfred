@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import styles from "./SidebarNav.module.css";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
@@ -70,38 +71,39 @@ function useUnreadReplies() {
   return count;
 }
 
-function Count({ n }: { n: number }) {
-  return (
-    <span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-[11px] font-medium tabular-nums text-primary-foreground">
-      {n}
-      <span className="sr-only"> unread</span>
-    </span>
-  );
-}
-
 export function SidebarNav() {
   const isActive = useActive();
   const unread = useUnreadReplies();
+  const selected = NAV.find(item => isActive(item.href));
   return (
-    <nav aria-label="Sidebar" className="space-y-0.5">
-      {NAV.map((item) => {
-        const active = isActive(item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "tap flex min-h-11 items-center gap-2.5 rounded-xl px-3 text-[15px]",
-              active ? "bg-moss-soft font-medium text-moss" : "text-ink-soft hover:bg-fill hover:text-ink"
-            )}
-          >
-            <item.icon className="size-4 shrink-0" strokeWidth={active ? 2.25 : 1.75} aria-hidden="true" />
-            {item.label}
-            {item.href === "/outreach" && unread > 0 && <Count n={unread} />}
-          </Link>
-        );
-      })}
+    <nav aria-label="Sidebar" className="shrink-0">
+      <div className="mb-2 flex h-[var(--sidebar-row,44px)] items-center rounded-xl bg-moss-soft px-3 text-moss">
+        {selected && <div key={selected.href} className={cn(styles.selection, "flex items-center gap-3 text-sm font-medium")}>
+          <selected.icon className="size-5 shrink-0" aria-hidden="true" />
+          <span>{selected.label}</span>
+        </div>}
+      </div>
+      <div className="grid grid-cols-2 gap-1">
+        {NAV.map((item) => {
+          const active = isActive(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-label={item.label}
+              title={item.label}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "relative flex h-[var(--sidebar-row,44px)] items-center justify-center rounded-xl transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary motion-reduce:transition-none",
+                active ? "bg-moss-soft text-moss" : "text-ink-soft hover:bg-fill hover:text-ink"
+              )}
+            >
+              <item.icon aria-hidden="true" strokeWidth={active ? 2.25 : 1.75} className="size-5 shrink-0" />
+              {item.href === "/outreach" && unread > 0 && <span className="absolute right-2 top-1 size-2 rounded-full bg-primary"><span className="sr-only">{unread} unread replies</span></span>}
+            </Link>
+          );
+        })}
+      </div>
     </nav>
   );
 }

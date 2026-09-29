@@ -119,6 +119,11 @@ export default async function LeadsPage({ searchParams }: { searchParams: { t?: 
                   {[lead.company, lead.email].filter(Boolean).join(" · ") || "No contact details"}
                 </div>
                 {!!reasons.length && <div className="mt-1 text-xs text-ink-soft">{reasons.join(", ")}</div>}
+                <div className="mt-1 text-xs text-ink-soft">
+                  Added <time dateTime={lead.created_at}>{new Date(lead.created_at).toLocaleDateString("en-PH", {
+                    timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric",
+                  })}</time>
+                </div>
                 <JevDetails assessment={lead.jev_assessment} />
               </div>
               <StatusChip tone={stageTone(lead.stage)}>{lead.stage}</StatusChip>

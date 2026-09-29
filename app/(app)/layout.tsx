@@ -1,12 +1,13 @@
 //app\(app)\layout.tsx
 
 import { createClient } from "@/lib/supabase/server";
-import { SidebarNav, TabBar } from "@/components/SidebarNav";
+import { TabBar } from "@/components/SidebarNav";
 import { CommandPalette, PaletteTrigger } from "@/components/CommandPalette";
 import { ApplicationSwitcher } from "@/components/ApplicationSwitcher";
 import { getActiveApplicationId } from "@/lib/applications";
 import SignOutButton from "./sign-out-button";
 import { CurrencySwitcher } from "@/components/CurrencySwitcher";
+import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { getDisplayCurrency } from "@/lib/currency-preference";
 
 export default async function AppLayout({
@@ -37,29 +38,17 @@ export default async function AppLayout({
         Skip to content
       </a>
 
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col justify-between bg-fill/40 px-4 py-7 backdrop-blur-xl md:flex">
-        <div>
-          <div className="mb-4 px-3 font-display text-2xl">Alfred</div>
-          <div className="mb-4">
-            <ApplicationSwitcher applications={applications ?? []} activeId={activeApplicationId} />
-          </div>
-          <div className="mb-4">
-            <PaletteTrigger variant="sidebar" />
-          </div>
-          <SidebarNav />
-        </div>
-
-        <div className="space-y-4 px-3">
-          <div>
-            <p className="mb-1.5 text-xs text-ink-soft">Display currency</p>
-            <CurrencySwitcher currency={displayCurrency} className="w-full" />
-          </div>
-          <div className="space-y-1 border-t border-line/70 pt-3">
-            <div className="truncate text-xs text-ink-soft">{user?.email}</div>
-            <SignOutButton />
-          </div>
-        </div>
-      </aside>
+      <DesktopSidebar
+        application={<ApplicationSwitcher applications={applications ?? []} activeId={activeApplicationId} />}
+        currency={<>
+          <p className="mb-1.5 text-xs text-ink-soft">Display currency</p>
+          <CurrencySwitcher currency={displayCurrency} className="w-full" />
+        </>}
+        account={<>
+          <div className="truncate text-xs text-ink-soft">{user?.email}</div>
+          <SignOutButton />
+        </>}
+      />
 
       <div className="min-w-0 flex-1">
         {/* Phone header: only what you need at a glance. Currency and sign out
