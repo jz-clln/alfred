@@ -5,6 +5,8 @@ export type BalanceEntryType = "invoice" | "payment";
 export interface Client {
   id: string;
   owner_id: string;
+  application_id: string | null;
+  currency: "PHP" | "USD";
   name: string;
   email: string | null;
   phone: string | null;
@@ -32,7 +34,15 @@ export interface BalanceEntry {
   client_id: string;
   type: BalanceEntryType;
   amount: number;
+  currency: "PHP" | "USD";
   memo: string | null;
   entry_date: string;
+  created_at: string;
+}
+
+export interface Application {
+  id: string;
+  owner_id: string;
+  name: string;
   created_at: string;
 }

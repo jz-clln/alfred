@@ -5,6 +5,7 @@ export type EmailStatus = "unchecked" | "valid" | "invalid" | "risky";
 export interface Lead {
   id: string;
   owner_id: string;
+  application_id: string | null;
   name: string;
   email: string | null;
   company: string | null;
