@@ -18,6 +18,17 @@ const workSans = Work_Sans({
 export const metadata: Metadata = {
   title: "Alfred",
   description: "Your business, run quietly in the background.",
+
+  icons: {
+    icon: [
+      {
+        url: "/alfred.png",
+        type: "image/png",
+      },
+    ],
+    shortcut: "/alfred.png",
+    apple: "/alfred.png",
+  },
 };
 
 export default function RootLayout({
@@ -26,7 +37,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${workSans.variable}`}>
+    <html
+      lang="en"
+      className={`${fraunces.variable} ${workSans.variable}`}
+    >
       <body>
         <ToastProvider>{children}</ToastProvider>
       </body>
